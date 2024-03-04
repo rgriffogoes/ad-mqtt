@@ -60,6 +60,10 @@ Note device.py mounting and environment parameters.
 
 ##### Changelog
 
+###### Version: 0.3.2
+ - updating codebase from original (TD22057) with minor logging fixes, improved Device attributes and versioning
+ - using insteon-mqtt with fixed Paho client to avoid Paho 2 breaking changes (f1d094)
+ 
 ###### Version: 0.3.1
  - Adding Device attribute in discovery (sn3ak)
  - Adding codeql in repo workflow
