@@ -49,16 +49,26 @@ jobs:
       - name: Smoke test entrypoint
         run: |
           printf 'def get_devices():\n    return []\n' > ci_devices.py
-          cid="$(docker run -d --rm \
-            -v "$PWD/ci_devices.py:/home/devices.py" \
+          # Create (not run) the container, copy the devices file in, then
+          # start it. A host bind-mount of "$PWD/..." fails on containerized
+          # runners (e.g. Forgejo act_runner) because $PWD is a job-container
+          # path the host Docker daemon cannot see; Docker would silently
+          # create an empty directory at /home/devices.py and the app would
+          # crash with IsADirectoryError. docker cp avoids that entirely.
+          cid="$(docker create \
             -e ADMQTT_SOCKET_HOST=127.0.0.1 \
             -e ADMQTT_MQTT_HOST=127.0.0.1 \
             ${{ env.IMAGE }}:ci)"
+          docker cp ci_devices.py "$cid:/home/devices.py"
+          docker start "$cid"
           # Give the app time to start and enter its poll loop.
           sleep 15
+          # Inspect first, then stop/remove, so a startup crash is not masked
+          # by an auto-removed container ("no such object").
           running="$(docker inspect -f '{{.State.Running}}' "$cid")"
           docker logs "$cid" 2>&1 | tail -20
           docker stop -t 1 "$cid" >/dev/null
+          docker rm "$cid" >/dev/null
           # The app loops forever retrying, so a running container means it
           # started cleanly; an early exit means it crashed on startup.
           if [ "$running" != "true" ]; then
