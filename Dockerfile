@@ -26,9 +26,9 @@ COPY run.py /home/run.py
 RUN useradd --create-home --uid 1000 app \
  && chown -R app:app /home
 
-# Mounting zones config file (never bake real zone/RF identifiers into the image)
-VOLUME [ "/home/devices.py" ]
-
+# Mount the zones config file (never bake real zone/RF identifiers into the
+# image), e.g. -v "$PWD/devices.py:/home/devices.py". Do not declare VOLUME
+# here: it makes /home/devices.py a directory and breaks file mounts.
 USER app
 WORKDIR /home/
 CMD ["python", "/home/run.py"]
