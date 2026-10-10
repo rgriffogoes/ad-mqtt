@@ -20,6 +20,9 @@ jobs:
       contents: read
       security-events: write
 
+    # CodeQL is a GitHub-only service; the action has no Forgejo mirror.
+    if: github.server_url == 'https://github.com'
+
     strategy:
       fail-fast: false
       matrix:
