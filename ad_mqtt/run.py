@@ -64,7 +64,14 @@ def run(cfg, alarm_code, devices, restore_all=False):
             bridge.reset_all_zones()
 
         while loop.active():
-            loop.select()
+            try:
+                loop.select()
+            except Exception:  # pylint: disable=broad-except
+                # A single bad message or transient handler error should not
+                # bring down the bridge.  Log it and keep the loop running.
+                # KeyboardInterrupt/SystemExit are BaseExceptions, so they
+                # still propagate and can stop the process.
+                log.exception("Unexpected exception in poll loop")
     except:
         log.exception("Unexpected exception")
         raise

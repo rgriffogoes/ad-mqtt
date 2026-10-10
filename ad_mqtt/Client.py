@@ -4,6 +4,7 @@ import logging
 import socket
 import insteon_mqtt.network as IN
 import alarmdecoder.event as ADE
+from alarmdecoder.util import InvalidMessageError
 
 LOG = logging.getLogger(__name__)
 
@@ -117,21 +118,74 @@ class Client (IN.Link):
 
     #-----------------------------------------------------------------------
     def parse_read_buf(self):
-        """TODO
+        """Process any complete messages found in the read buffer.
+
+        AlarmDecoder messages may be terminated by CR, LF or CRLF and several
+        messages can arrive in a single read.  Split on any of those
+        delimiters so that each message is handled individually instead of
+        being concatenated into one bogus panel message.
         """
         while True:
-            line, _sep, after = self._read_buf.partition(b"\n")
+            # Find the first line terminator (either CR or LF).
+            nl = self._read_buf.find(b"\n")
+            cr = self._read_buf.find(b"\r")
+            if nl == -1:
+                idx = cr
+            elif cr == -1:
+                idx = nl
+            else:
+                idx = min(nl, cr)
 
-            # If we didn't find a new line, or the parsed data is empty, wait
-            # for more data
-            if not _sep or not line:
+            # No line terminator yet - wait for more data.
+            if idx == -1:
                 break
 
-            line = line.rstrip(b"\r\n")
+            line = self._read_buf[:idx]
 
-            LOG.debug("Processing line '%s'", line)
+            # Consume the terminator and any repeated CR/LF characters.
+            end = idx
+            while self._read_buf[end:end + 1] in (b"\r", b"\n"):
+                end += 1
+            self._read_buf = self._read_buf[end:]
+
+            # Ignore empty lines (e.g. a stray CRLF).
+            if not line:
+                continue
+
+            self._process_line(line)
+
+    #-----------------------------------------------------------------------
+    def _process_line(self, line):
+        """Dispatch a single message, isolating any handling errors.
+
+        A malformed or unexpected message must not be allowed to propagate
+        up through the event callbacks and out of the poll loop, which would
+        crash the whole bridge (and trigger a container restart).
+        """
+        LOG.debug("Processing line '%s'", line)
+        try:
             self.on_read(data=line)
-            self._read_buf = after
+            return
+        except InvalidMessageError:
+            pass
+        except Exception:  # pylint: disable=broad-except
+            LOG.exception("Error processing line '%s'", line)
+            return
+
+        # When the panel emits several frames back-to-back the preceding
+        # frame can arrive without the closing quote on its alphanumeric
+        # text field.  Try to repair it rather than silently dropping the
+        # message.
+        if line and not line.endswith(b'"'):
+            repaired = line + b'"'
+            try:
+                LOG.debug("Retrying repaired line '%s'", repaired)
+                self.on_read(data=repaired)
+                return
+            except Exception:  # pylint: disable=broad-except
+                pass
+
+        LOG.error("Discarding invalid message '%s'", line)
 
     #-----------------------------------------------------------------------
     def write_to_link(self, t):

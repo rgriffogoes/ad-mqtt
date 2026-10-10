@@ -62,6 +62,22 @@ services:
 ```
 Note device.py mounting and environment parameters.
 
+##### Tests
+
+Install the test dependencies (if needed) and run the suite from the repo root:
+
+```
+uv pip install -r requirements-test.txt
+.venv/bin/python -m pytest tests/ -q
+```
+
+Run a single test file or a specific test:
+
+```
+.venv/bin/python -m pytest tests/test_client.py -v
+.venv/bin/python -m pytest tests/test_client.py::test_cr_separated_messages_are_split
+```
+
 ##### Changelog
 
 ###### Version: 0.3.2
