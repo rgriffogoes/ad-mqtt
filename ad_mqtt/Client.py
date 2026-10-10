@@ -1,12 +1,23 @@
 # pylint: disable=attribute-defined-outside-init
 import errno
 import logging
+import re
 import socket
 import insteon_mqtt.network as IN
 import alarmdecoder.event as ADE
 from alarmdecoder.util import InvalidMessageError
 
 LOG = logging.getLogger(__name__)
+
+# Matches the start of a panel message:
+#   [!KPM:][address],numeric_code,[panel_data],"
+# The address contains hex characters and dashes, the numeric code and panel
+# data are hex, and the alphanumeric text field always opens with a quote.
+# This is used to detect two frames that arrived glued together with no CR/LF
+# separating them.
+_FRAME_START = re.compile(
+    rb'(?:!KPM:)?\[[0-9A-Fa-f\-]+\],[0-9A-Fa-f]+,\[[0-9A-Fa-f]+\],(?=")'
+)
 
 
 class Client (IN.Link):
@@ -152,7 +163,31 @@ class Client (IN.Link):
             if not line:
                 continue
 
-            self._process_line(line)
+            for part in self._split_glued_frames(line):
+                self._process_line(part)
+
+    #-----------------------------------------------------------------------
+    def _split_glued_frames(self, line):
+        """Split a line into multiple frames when they are glued together.
+
+        Usually each panel frame is terminated by CR/LF and the splitting in
+        parse_read_buf handles them.  When the panel emits several frames
+        back-to-back the earlier frame can omit the closing quote on its
+        alphanumeric text field, and the following frame then starts
+        immediately with no CR/LF in between.  Detect every frame header and
+        split the blob so each frame is parsed on its own.
+        """
+        starts = [match.start() for match in _FRAME_START.finditer(line)]
+
+        # A single frame (or no panel frame at all) needs no splitting.
+        if len(starts) <= 1:
+            return [line]
+
+        parts = []
+        for i, start in enumerate(starts):
+            end = starts[i + 1] if i + 1 < len(starts) else len(line)
+            parts.append(line[start:end])
+        return parts
 
     #-----------------------------------------------------------------------
     def _process_line(self, line):
