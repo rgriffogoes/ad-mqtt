@@ -17,11 +17,15 @@ git clone https://github.com/TD22057/ad-mqtt.git
 python3 -m venv venv
 ./venv/bin/pip install -r requirements.txt
 
-[edit run.py to add ser2sock+mqtt broker host:port settings, 
-edit devices.py to add zone info]
+cp .env.example .env    # then edit .env with your broker/panel settings
+# edit devices.py to add zone info
 
 ./run.py
 ```
+
+Configuration is read from environment variables. For local runs, copy
+`.env.example` to `.env` and edit it; `run.py` loads it automatically (real
+environment variables still take precedence).
 
 ##### Direct Docker Execution
 Example docker execution with some parameters passed as environment vars. 

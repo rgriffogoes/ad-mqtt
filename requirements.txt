@@ -1,4 +1,5 @@
 pyyaml>=3
 Jinja2>=2.1
 alarmdecoder
+python-dotenv>=1.0
 git+https://github.com/f1d094/insteon-mqtt_with_paho-mqtt-1.6.1#egg=insteon-mqtt

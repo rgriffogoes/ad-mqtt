@@ -3,7 +3,11 @@
 import sys
 import os
 sys.path.insert( 0, "." )
+from dotenv import load_dotenv
 import ad_mqtt as AD
+
+# Load local .env file if present. Real environment variables take precedence.
+load_dotenv()
 
 cfg = AD.Config()
 
