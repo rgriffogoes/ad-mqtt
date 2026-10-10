@@ -1,0 +1,17 @@
+.git
+.github
+.venv
+venv
+env
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.coverage
+log.txt
+.env
+devices.py
+README.md
+LICENSE
+notes.txt
+requirements-test.txt
