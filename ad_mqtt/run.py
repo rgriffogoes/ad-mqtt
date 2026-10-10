@@ -31,6 +31,7 @@ def setup_logging(log_cfg):
         if log_cfg.file:
             log.addHandler(file_handler)
 
+
 def run(cfg, alarm_code, devices, restore_all=False):
     setup_logging(cfg.log)
 
@@ -42,14 +43,18 @@ def run(cfg, alarm_code, devices, restore_all=False):
         # Alarm decoder network device.
         ad_client = Client(cfg.alarm.host, cfg.alarm.port)
         decoder = AD.AlarmDecoder(ad_client)
-        decoder._wire_events()
+        # Required to register the decoder's event callbacks.
+        decoder._wire_events()  # pylint: disable=protected-access
 
         mqtt_client = IM.network.Mqtt(id="ad-mqtt")
         # IM uses dict: cfg['a'] not cfg.a
         mqtt_client.load_config(cfg.mqtt.__dict__)
 
         bridge = Bridge(mqtt_client, decoder, alarm_code, zones, rf_devices)
+        # Discovery subscribes to the connected signal, which only holds a
+        # weak reference, so keep a strong reference for the process lifetime.
         discovery = Discovery(mqtt_client, bridge, zones)
+        log.debug("Queued %d discovery messages", len(discovery.messages))
 
         loop = IM.network.poll.Manager()
         loop.add(ad_client, connected=False)

@@ -7,13 +7,13 @@ LOG = logging.getLogger(__name__)
 
 class Discovery:
     device = {
-       'identifiers' : ['ad-mqtt'],
-       'name' : 'ad-mqtt',
-       'model' : 'AlarmDecoder <-> MQTT Bridge',
-       'manufacturer' : 'TD22057',
-       'sw_version' : version.__version__,
-       }
-    
+        'identifiers' : ['ad-mqtt'],
+        'name' : 'ad-mqtt',
+        'model' : 'AlarmDecoder <-> MQTT Bridge',
+        'manufacturer' : 'TD22057',
+        'sw_version' : version.__version__,
+        }
+
     def __init__(self, mqtt, bridge, zones):
         self.mqtt = mqtt
         mqtt.signal_connected.connect(self.mqtt_connected)

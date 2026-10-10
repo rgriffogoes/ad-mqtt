@@ -117,7 +117,7 @@ class Bridge:
     def cb_bypass_set(self, client, user_data, message):
         msg = message.payload.decode("utf-8").strip()
         LOG.info("Read bypass set '%s'", msg)
-        self.is_bypass = (msg.lower() == "on")
+        self.is_bypass = msg.lower() == "on"
 
         payload = {"status" : "ON" if self.is_bypass else "OFF"}
         self.publish(self.bypass_state_topic, {}, payload)
@@ -200,7 +200,7 @@ class Bridge:
 
         info = self.zones.get(zone)
         if info:
-            LOG.debug("Setting zone %s = True", zone )
+            LOG.debug("Setting zone %s = True", zone)
             info.faulted = True
 
         payload = {"status" : "ON"}
@@ -211,7 +211,7 @@ class Bridge:
         LOG.info("on_zone_restored %s", zone)
         info = self.zones.get(zone)
         if info:
-            LOG.debug("Setting zone %s = False", zone )
+            LOG.debug("Setting zone %s = False", zone)
             info.faulted = False
 
         payload = {"status" : "OFF"}
@@ -323,7 +323,7 @@ class Bridge:
                 self.on_zone_restore(dev, loop.zone)
 
             LOG.debug("Setting zone %s loop %s = %s", loop.zone, i,
-                      msg.loop[i] )
+                      msg.loop[i])
             loop.faulted = msg.loop[i]
 
     def on_open(self, dev):

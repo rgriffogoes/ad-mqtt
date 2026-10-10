@@ -1,48 +1,90 @@
-name: Docker Image CI (build, python dependencies test, push registry)
+name: Docker Image CI (build, smoke test, push)
 
 on:
   push:
     branches: [ "main" ]
-    paths-ignore: [ "*.md" ]
+    paths-ignore: [ "**/*.md" ]
   pull_request:
     branches: [ "main" ]
-    paths-ignore: [ "*.md" ]
-       
+    paths-ignore: [ "**/*.md" ]
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: rgriffogoes/ad-mqtt
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Clone Repository
-      uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set Up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: 3.x
-        
-    - name: Install Dependencies
-      run: |
-        python -m pip install -r requirements.txt
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Get refs - this will be used as tags later on
-      shell: bash
-      run: |
-        echo "::set-output name=sha12::$(echo ${GITHUB_SHA} | cut -c1-12)"
-      id: getrefs
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: "."
+          file: "Dockerfile"
+          load: true
+          tags: ${{ env.IMAGE }}:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-    - name: Login to Docker Hub
-      uses: docker/login-action@v1
-      with:
-        username: ${{secrets.DOCKERHUB_USERNAME}}
-        password: ${{secrets.DOCKERHUB_TOKEN}}
-        
-    - name: Push
-      if: github.ref == 'refs/heads/main'
-      uses: docker/build-push-action@v2
-      with:
-        context: "."
-        file: "Dockerfile"
-        push: true
-        tags: |
-          rgriffogoes/ad-mqtt:${{steps.getrefs.outputs.sha12}}, rgriffogoes/ad-mqtt:latest
+      - name: Verify image runs as non-root
+        run: |
+          uid="$(docker run --rm --entrypoint id ${{ env.IMAGE }}:ci -u)"
+          echo "image uid=$uid"
+          test "$uid" = "1000"
+
+      - name: Verify imports
+        run: |
+          docker run --rm --entrypoint python ${{ env.IMAGE }}:ci -c \
+            "import ad_mqtt, paho.mqtt, alarmdecoder, insteon_mqtt; print('imports OK')"
+
+      - name: Smoke test entrypoint
+        run: |
+          printf 'def get_devices():\n    return []\n' > ci_devices.py
+          cid="$(docker run -d --rm \
+            -v "$PWD/ci_devices.py:/home/devices.py" \
+            -e ADMQTT_SOCKET_HOST=127.0.0.1 \
+            -e ADMQTT_MQTT_HOST=127.0.0.1 \
+            ${{ env.IMAGE }}:ci)"
+          # Give the app time to start and enter its poll loop.
+          sleep 15
+          running="$(docker inspect -f '{{.State.Running}}' "$cid")"
+          docker logs "$cid" 2>&1 | tail -20
+          docker stop -t 1 "$cid" >/dev/null
+          # The app loops forever retrying, so a running container means it
+          # started cleanly; an early exit means it crashed on startup.
+          if [ "$running" != "true" ]; then
+            echo "::error::app exited during startup"
+            exit 1
+          fi
+          echo "entrypoint OK"
+
+      - name: Compute image tag
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: meta
+        run: echo "sha12=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to Docker Hub
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Push the exact image that passed the smoke tests above, so what is
+      # published is what was verified.
+      - name: Push image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker tag "${{ env.IMAGE }}:ci" "${{ env.IMAGE }}:${{ steps.meta.outputs.sha12 }}"
+          docker tag "${{ env.IMAGE }}:ci" "${{ env.IMAGE }}:latest"
+          docker push "${{ env.IMAGE }}:${{ steps.meta.outputs.sha12 }}"
+          docker push "${{ env.IMAGE }}:latest"
