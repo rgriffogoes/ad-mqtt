@@ -9,13 +9,22 @@ import ad_mqtt as AD
 # Load local .env file if present. Real environment variables take precedence.
 load_dotenv()
 
+
+def env_bool(name, default=False):
+    # Parse common truthy strings (bool("False") would wrongly be True).
+    val = os.getenv(name)
+    if val is None:
+        return default
+    return val.strip().lower() in ("1", "true", "yes", "on")
+
+
 cfg = AD.Config()
 
 # Alarm Decoder ser2sock server location.
 cfg.alarm.host = os.getenv("ADMQTT_SOCKET_HOST","127.0.0.1")
 cfg.alarm.port = int(os.getenv("ADMQTT_SOCKET_PORT",10000))
 # To reset all zones to closed (not faulted) on startup, set this to True
-cfg.alarm.restore_on_startup = bool(os.getenv("ADMQTT_RESTORE_ON_STARTUP",False))
+cfg.alarm.restore_on_startup = env_bool("ADMQTT_RESTORE_ON_STARTUP", False)
 
 # MQTT Broker connection
 cfg.mqtt.broker = os.getenv("ADMQTT_MQTT_HOST","127.0.0.1")
@@ -30,9 +39,10 @@ cfg.mqtt.encryption.keyfile = os.getenv("ADMQTT_MQTT_KEYFILE",None)
 
 # Debugging information
 cfg.log.level = os.getenv("ADMQTT_LOG_LEVEL","INFO")
-cfg.log.screen = bool(os.getenv("ADMQTT_LOG_SCREEN",False))
-file_config = os.getenv("ADMQTT_LOG_FILE","log.txt")
-# Allowing env var to disable default file logging
+# Log to the console by default.
+cfg.log.screen = env_bool("ADMQTT_LOG_SCREEN", True)
+# File logging is opt-in; set ADMQTT_LOG_FILE to a path to enable it.
+file_config = os.getenv("ADMQTT_LOG_FILE","").strip()
 if len(file_config) == 0:
     file_config = None
 cfg.log.file = file_config
