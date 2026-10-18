@@ -131,7 +131,10 @@ class Bridge:
             if not zone:
                 zone = self.zones.get(zone_num)
                 if not zone:
-                    LOG.error("Skipping unknown zone %s", zone_num)
+                    LOG.error("Skipping unknown zone %s: topic=%s "
+                              "topic_args=%s payload=%s known_zones=%s",
+                              zone_num, topic, topic_args, payload_args,
+                              sorted(self.zones))
                     return
 
             if zone:
@@ -170,7 +173,8 @@ class Bridge:
         # Update the faulted zone first.
         info = self.zones.get(zone)
         if not info:
-            LOG.error("Skipping unknown zone %s", zone)
+            LOG.error("Skipping unknown alarm zone %s known_zones=%s", zone,
+                      sorted(self.zones))
         else:
             self.last_alarm_zone = info.entity
 
