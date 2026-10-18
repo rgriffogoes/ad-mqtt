@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 
 from unittest.mock import MagicMock
@@ -100,6 +101,8 @@ def test_unknown_rf_serial_is_logged(tmp_path):
     assert len(lines) == 1
     rec = lines[0]
     assert rec["serial"] == "24E5C8"
+    assert rec["known"] is False
+    assert rec["mapped"] == {}
     assert rec["value"] == 0x81
     assert rec["loop"] == [True, False, False, False]
     assert rec["open_loops"] == [1]
@@ -133,14 +136,18 @@ def test_unknown_rf_serial_battery_flag(tmp_path):
     assert rec["battery"] is True
 
 
-def test_known_rf_serial_is_not_logged(tmp_path):
+def test_known_rf_serial_is_logged(tmp_path):
     path = str(tmp_path / "rf.jsonl")
     rf = Rf("24E5C8", [Zone(5, "rf_front_door", "Front door")])
     bridge = make_bridge(rf_devices={"24E5C8": rf}, rf_log=RfLog(path))
 
+    # 0x21 = bit 6 -> loop 2 open (loop 1 has the mapped zone).
     bridge.on_rfx_message(None, make_msg(serial="24E5C8", value=0x21))
 
-    assert not os.path.exists(path)
+    rec = read_lines(path)[0]
+    assert rec["known"] is True
+    assert rec["mapped"] == {"1": "rf_front_door"}
+    assert rec["open_loops"] == [2]
 
 
 def test_unknown_rf_serial_without_rf_log_is_fine():
@@ -270,3 +277,47 @@ def test_rfzone_loop_two_ignores_other_loops():
     bridge.on_rfx_message(None, make_msg(serial="0789186", value=0xa0))
     bridge.on_rfx_message(None, make_msg(serial="0789186", value=0x80))
     assert published_states(bridge) == ["ON", "OFF"]
+
+
+# ------------------------------------------------ transition logging
+
+
+def test_loop_transition_is_logged_at_info(caplog):
+    zones, rf_devices = init_devices(
+        [RfZone(789186, 510, "master_bedroom_right_window",
+                "Master Bedroom Right Window", loop=2)])
+    bridge = make_publishing_bridge(zones, rf_devices)
+
+    with caplog.at_level(logging.INFO, logger="ad_mqtt.Bridge"):
+        bridge.on_rfx_message(None, make_msg(serial="0789186", value=0xa0))
+
+    assert "RF zone 510 loop 2 -> ON" in caplog.text
+    assert "serial 789186" in caplog.text
+
+
+def test_loop_transition_restore_is_logged_at_info(caplog):
+    zones, rf_devices = init_devices(
+        [RfZone(789186, 510, "master_bedroom_right_window",
+                "Master Bedroom Right Window", loop=2)])
+    bridge = make_publishing_bridge(zones, rf_devices)
+    bridge.on_rfx_message(None, make_msg(serial="0789186", value=0xa0))
+
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger="ad_mqtt.Bridge"):
+        bridge.on_rfx_message(None, make_msg(serial="0789186", value=0x80))
+
+    assert "RF zone 510 loop 2 -> OFF" in caplog.text
+
+
+def test_no_transition_log_when_state_unchanged(caplog):
+    zones, rf_devices = init_devices(
+        [RfZone(789186, 510, "master_bedroom_right_window",
+                "Master Bedroom Right Window", loop=2)])
+    bridge = make_publishing_bridge(zones, rf_devices)
+    bridge.on_rfx_message(None, make_msg(serial="0789186", value=0xa0))
+
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger="ad_mqtt.Bridge"):
+        bridge.on_rfx_message(None, make_msg(serial="0789186", value=0xa0))
+
+    assert "RF zone 510 loop 2" not in caplog.text

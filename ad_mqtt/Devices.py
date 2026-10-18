@@ -52,7 +52,7 @@ class RfZone (Rf):
 
     loop is the 1-based RF loop number the contact is on (default 1).
     Many sensors report different functions on different loops; check
-    the raw RFX values in the unknown-RF log to find the right one.
+    the raw RFX values in the RF log (rf_log.jsonl) to find the right one.
     """
     def __init__(self, id, zone, entity, label, loop=1):
         assert 1 <= loop <= 4

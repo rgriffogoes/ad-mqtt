@@ -26,8 +26,8 @@ cfg.alarm.port = int(os.getenv("ADMQTT_SOCKET_PORT",10000))
 # To reset all zones to closed (not faulted) on startup, set this to True
 cfg.alarm.restore_on_startup = env_bool("ADMQTT_RESTORE_ON_STARTUP", False)
 
-# Local JSON-lines log of RF messages from unknown serials; used to map new
-# RF devices. Leave empty to disable.
+# Local JSON-lines log of RF messages, known and unknown serials; used to
+# map new RF devices and debug loop mapping. Leave empty to disable.
 rf_log_file = os.getenv("ADMQTT_RF_LOG_FILE", "rf_log.jsonl").strip()
 if len(rf_log_file) == 0:
     rf_log_file = None

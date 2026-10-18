@@ -166,7 +166,7 @@ class Discovery:
                 bat_unique_id = z.unique_id + '_battery'
                 topic = f'homeassistant/sensor/{bat_unique_id}/config'
                 state_topic = bridge.sensor_battery_topic.format(
-                    unique_id=bat_unique_id, entity=bat_entity)
+                    unique_id=z.unique_id, entity=z.entity)
                 payload = {
                     'name' : z.label + ' Battery',
                     'object_id' : bat_entity,

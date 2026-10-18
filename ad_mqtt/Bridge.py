@@ -302,8 +302,10 @@ class Bridge:
         info = self.rf_devices.get(serial)
         if info is None:
             LOG.debug("Ignoring unknown RF serial no %s", msg.serial_number)
-            self._log_unknown_rf(msg)
+            self._log_rf(msg)
             return
+
+        self._log_rf(msg, info)
 
         LOG.info("on_rfx_message serial=%s value=%s battery=%s supervision=%s "
                  "loop=%s", msg.serial_number, msg.value, msg.battery,
@@ -331,11 +333,13 @@ class Bridge:
             else:
                 self.on_zone_restore(dev, loop.zone)
 
-            LOG.debug("Setting zone %s loop %s = %s", loop.zone, i,
-                      msg.loop[i])
+            LOG.info("RF zone %s loop %s -> %s (serial %s value=%s "
+                     "supervision=%s)", loop.zone, i + 1,
+                     "ON" if msg.loop[i] else "OFF", serial, msg.value,
+                     bool(msg.supervision))
             loop.faulted = msg.loop[i]
 
-    def _log_unknown_rf(self, msg):
+    def _log_rf(self, msg, info=None):
         if self.rf_log is None:
             return
 
@@ -343,6 +347,10 @@ class Bridge:
         record = {
             "time": DT.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             "serial": normalize_serial(msg.serial_number),
+            "known": info is not None,
+            "mapped": {} if info is None else {
+                str(i + 1): l.entity
+                for i, l in enumerate(info.loops) if l},
             "value": msg.value,
             "battery": bool(msg.battery),
             "supervision": bool(msg.supervision),

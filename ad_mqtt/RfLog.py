@@ -6,14 +6,15 @@ LOG = logging.getLogger(__name__)
 
 
 class RfLog:
-    """Append-only JSON-lines log of RF messages from unknown serials.
+    """Append-only JSON-lines log of RF messages, known and unknown serials.
 
-    Used to make mapping new RF devices easier: each line records the
-    time, serial number, raw value, battery/supervision flags and the
-    open/closed state of each loop.  The file is capped at max_bytes;
-    when a write would exceed the cap the current file is rotated to
-    <path>.1 (replacing any previous backup) and writing continues in a
-    fresh file so the active file never grows beyond the cap.
+    Used to map and debug RF devices: each line records the time, serial
+    number, whether the serial is a known device (plus its loop/entity
+    mapping), raw value, battery/supervision flags and the open/closed
+    state of each loop.  The file is capped at max_bytes; when a write
+    would exceed the cap the current file is rotated to <path>.1
+    (replacing any previous backup) and writing continues in a fresh
+    file so the active file never grows beyond the cap.
     """
 
     def __init__(self, path, max_bytes=100 * 1024 * 1024):
