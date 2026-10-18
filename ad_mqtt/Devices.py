@@ -1,4 +1,14 @@
 
+def normalize_serial(serial):
+    """Normalize an RF serial to a string with no leading zeros.
+
+    The panel reports serials zero-padded (e.g. '0789186') while users
+    typically write them as ints in devices.py (789186).  Normalize both
+    so lookups match.
+    """
+    return str(serial).lstrip('0') or '0'
+
+
 def init_devices(devices):
     zones, rf_devices = {}, {}
 
@@ -29,7 +39,7 @@ class Zone:
 class Rf:
     def __init__(self, id, loops):
         assert len(loops) <= 4
-        self.id = str(id)
+        self.id = normalize_serial(id)
         self.loops = [None] * 4
         for i, l in enumerate(loops):
             self.loops[i] = l

@@ -4,7 +4,7 @@ import os
 from unittest.mock import MagicMock
 
 from ad_mqtt.Bridge import Bridge
-from ad_mqtt.Devices import Rf, Zone
+from ad_mqtt.Devices import Rf, RfZone, Zone, init_devices, normalize_serial
 from ad_mqtt.RfLog import RfLog
 
 
@@ -20,8 +20,9 @@ def make_msg(serial="24E5C8", value=0x21, raw="RF:24E5C8,21"):
     return msg
 
 
-def make_bridge(rf_devices=None, rf_log=None):
-    return Bridge(MagicMock(), MagicMock(), "1234", zones={},
+def make_bridge(rf_devices=None, rf_log=None, zones=None):
+    return Bridge(MagicMock(), MagicMock(), "1234",
+                  zones=zones if zones is not None else {},
                   rf_devices=rf_devices if rf_devices is not None else {},
                   rf_log=rf_log)
 
@@ -150,3 +151,38 @@ def test_unknown_rf_serial_without_rf_log_is_fine():
 def test_bridge_defaults_rf_log_to_none():
     bridge = make_bridge()
     assert bridge.rf_log is None
+
+
+# ------------------------------------------- leading-zero serial matching
+
+
+def test_leading_zero_panel_serial_matches_int_config():
+    # The panel zero-pads serials to 7 digits (e.g. '0789186') but
+    # devices.py typically writes them as ints (789186).
+    zones, rf_devices = init_devices(
+        [RfZone(789186, 510, "master_bedroom_right_window",
+                "Master Bedroom Right Window")])
+
+    bridge = make_bridge(rf_devices=rf_devices, rf_log=None, zones=zones)
+    # Real panel-style message with the leading-zero serial.  0x80 = bit 8
+    # -> loop 1 open, which is the loop RfZone configures.
+    bridge.on_rfx_message(None, make_msg(serial="0789186", value=0x80))
+
+    # Device matched: loop state was applied to the configured zone.
+    assert zones[510].faulted is True
+
+
+def test_leading_zero_serial_in_config_matches_panel():
+    # Config written with a leading-zero string should also match.
+    _, rf_devices = init_devices(
+        [RfZone("0789186", 510, "master_bedroom_right_window",
+                "Master Bedroom Right Window")])
+
+    assert "789186" in rf_devices
+
+
+def test_normalize_serial():
+    assert normalize_serial("0789186") == "789186"
+    assert normalize_serial(789186) == "789186"
+    assert normalize_serial("789186") == "789186"
+    assert normalize_serial("000") == "0"

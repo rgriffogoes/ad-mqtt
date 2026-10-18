@@ -2,6 +2,8 @@ import datetime as DT
 import json
 import logging
 
+from .Devices import normalize_serial
+
 LOG = logging.getLogger(__name__)
 
 
@@ -296,7 +298,7 @@ class Bridge:
 
     def on_rfx_message(self, dev, message):
         msg = message
-        serial = str(msg.serial_number)
+        serial = normalize_serial(msg.serial_number)
         info = self.rf_devices.get(serial)
         if info is None:
             LOG.debug("Ignoring unknown RF serial no %s", msg.serial_number)
@@ -340,7 +342,7 @@ class Bridge:
         # True = open/faulted, False = closed/clear
         record = {
             "time": DT.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            "serial": str(msg.serial_number),
+            "serial": normalize_serial(msg.serial_number),
             "value": msg.value,
             "battery": bool(msg.battery),
             "supervision": bool(msg.supervision),
