@@ -6,7 +6,8 @@ LOG = logging.getLogger(__name__)
 
 
 class Bridge:
-    def __init__(self, mqtt, decoder, code, zones, rf_devices):
+    def __init__(self, mqtt, decoder, code, zones, rf_devices, *,
+                 rf_log=None):
         self.mqtt = mqtt
         self.ad = decoder
         self._connect()
@@ -20,6 +21,7 @@ class Bridge:
         self.code = code
         self.zones = zones
         self.rf_devices = rf_devices
+        self.rf_log = rf_log
         self.req_chime_on = None
 
         self.panel_state_topic = "alarm/panel/state"
@@ -298,6 +300,7 @@ class Bridge:
         info = self.rf_devices.get(serial)
         if info is None:
             LOG.debug("Ignoring unknown RF serial no %s", msg.serial_number)
+            self._log_unknown_rf(msg)
             return
 
         LOG.info("on_rfx_message serial=%s value=%s battery=%s supervision=%s "
@@ -329,6 +332,23 @@ class Bridge:
             LOG.debug("Setting zone %s loop %s = %s", loop.zone, i,
                       msg.loop[i])
             loop.faulted = msg.loop[i]
+
+    def _log_unknown_rf(self, msg):
+        if self.rf_log is None:
+            return
+
+        # True = open/faulted, False = closed/clear
+        record = {
+            "time": DT.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            "serial": str(msg.serial_number),
+            "value": msg.value,
+            "battery": bool(msg.battery),
+            "supervision": bool(msg.supervision),
+            "loop": [bool(x) for x in msg.loop],
+            "open_loops": [i + 1 for i, x in enumerate(msg.loop) if x],
+            "raw": msg.raw,
+            }
+        self.rf_log.write(record)
 
     def on_open(self, dev):
         LOG.info("on_open")

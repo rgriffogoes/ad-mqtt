@@ -6,6 +6,7 @@ from .Bridge import Bridge
 from .Client import Client
 from . import Devices
 from .Discovery import Discovery
+from .RfLog import RfLog
 
 
 def setup_logging(log_cfg):
@@ -50,7 +51,13 @@ def run(cfg, alarm_code, devices, restore_all=False):
         # IM uses dict: cfg['a'] not cfg.a
         mqtt_client.load_config(cfg.mqtt.__dict__)
 
-        bridge = Bridge(mqtt_client, decoder, alarm_code, zones, rf_devices)
+        rf_log = None
+        if cfg.alarm.rf_log_file:
+            rf_log = RfLog(cfg.alarm.rf_log_file,
+                           max_bytes=cfg.alarm.rf_log_max_mb * 1024 * 1024)
+
+        bridge = Bridge(mqtt_client, decoder, alarm_code, zones, rf_devices,
+                        rf_log=rf_log)
         # Discovery subscribes to the connected signal, which only holds a
         # weak reference, so keep a strong reference for the process lifetime.
         discovery = Discovery(mqtt_client, bridge, zones)

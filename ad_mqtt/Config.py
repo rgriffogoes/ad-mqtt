@@ -13,6 +13,10 @@ class Config:
         self.alarm.port = 1000
         # Reset all zones to not faulted on startup
         self.alarm.restore_on_startup = False
+        # Local JSON-lines log of RF messages from unknown serials (used to
+        # map new RF devices).  None disables.
+        self.alarm.rf_log_file = 'rf_log.jsonl'
+        self.alarm.rf_log_max_mb = 100
 
         # MQTT broker (names must match insteon-mqtt settings variables)
         self.mqtt = Data()

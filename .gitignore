@@ -152,3 +152,7 @@ cython_debug/
 #.idea/
 
 log.txt
+
+# Unknown-RF-device mapping log (runtime data)
+rf_log.jsonl
+rf_log.jsonl.1
