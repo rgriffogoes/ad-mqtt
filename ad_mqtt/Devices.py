@@ -48,8 +48,17 @@ class Rf:
 
 
 class RfZone (Rf):
-    def __init__(self, id, zone, entity, label):
-        super().__init__(id, [Zone(zone, entity, label)])
+    """Single-loop RF zone.
+
+    loop is the 1-based RF loop number the contact is on (default 1).
+    Many sensors report different functions on different loops; check
+    the raw RFX values in the unknown-RF log to find the right one.
+    """
+    def __init__(self, id, zone, entity, label, loop=1):
+        assert 1 <= loop <= 4
+        zones = [None] * 4
+        zones[loop - 1] = Zone(zone, entity, label)
+        super().__init__(id, zones)
 
 
 class_keywords = {

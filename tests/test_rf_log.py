@@ -186,3 +186,87 @@ def test_normalize_serial():
     assert normalize_serial(789186) == "789186"
     assert normalize_serial("789186") == "789186"
     assert normalize_serial("000") == "0"
+
+
+# ------------------------------------------------- RfZone loop selection
+
+
+def published_states(bridge):
+    return [json.loads(args[1])["status"]
+            for args, _ in bridge.mqtt.publish.call_args_list
+            if args[0].startswith("alarm/sensor/") and
+            args[0].endswith("/state")]
+
+
+def make_publishing_bridge(zones, rf_devices):
+    bridge = make_bridge(rf_devices=rf_devices, zones=zones)
+    bridge.mqtt.publish.reset_mock()
+    return bridge
+
+
+def test_rfzone_default_is_loop_one():
+    rf = RfZone(789186, 510, "master_bedroom_right_window",
+                "Master Bedroom Right Window")
+    assert rf.loops[0] is not None
+    assert rf.loops[1] is None
+
+
+def test_rfzone_loop_kwarg_places_zone_on_named_loop():
+    rf = RfZone(789186, 510, "master_bedroom_right_window",
+                "Master Bedroom Right Window", loop=2)
+    assert rf.loops[0] is None
+    assert rf.loops[1] is not None
+
+
+def test_rfzone_on_wrong_loop_misses_close():
+    # Sensor from the field: open sends 0xa0 (loops 1+2 open), close
+    # sends 0x80 (loop 1 still open, only loop 2 cleared).  Mapping the
+    # zone to loop 1 never sees the close.
+    zones, rf_devices = init_devices(
+        [RfZone(789186, 510, "master_bedroom_right_window",
+                "Master Bedroom Right Window")])
+    bridge = make_publishing_bridge(zones, rf_devices)
+
+    bridge.on_rfx_message(None, make_msg(serial="0789186", value=0xa0))
+    bridge.on_rfx_message(None, make_msg(serial="0789186", value=0x80))
+
+    assert published_states(bridge) == ["ON"]
+
+
+def test_rfzone_loop_two_processes_open_and_close():
+    zones, rf_devices = init_devices(
+        [RfZone(789186, 510, "master_bedroom_right_window",
+                "Master Bedroom Right Window", loop=2)])
+    bridge = make_publishing_bridge(zones, rf_devices)
+
+    # Same real-world sequence: open 0xa0 then close 0x80.
+    bridge.on_rfx_message(None, make_msg(serial="0789186", value=0xa0))
+    assert published_states(bridge) == ["ON"]
+    assert zones[510].faulted is True
+
+    bridge.mqtt.publish.reset_mock()
+    bridge.on_rfx_message(None, make_msg(serial="0789186", value=0x80))
+    assert published_states(bridge) == ["OFF"]
+    assert zones[510].faulted is False
+
+
+def test_rfzone_loop_two_ignores_other_loops():
+    zones, rf_devices = init_devices(
+        [RfZone(789186, 510, "master_bedroom_right_window",
+                "Master Bedroom Right Window", loop=2)])
+    bridge = make_publishing_bridge(zones, rf_devices)
+
+    # 0xa0 = loops 1+2 open -> our loop 2 faults.
+    bridge.on_rfx_message(None, make_msg(serial="0789186", value=0xa0))
+    assert published_states(bridge) == ["ON"]
+
+    # 0x80 = only loop 1 open; loop 2 cleared.  Our zone restores, and
+    # loop 1 flapping on later messages must not publish anything more.
+    bridge.mqtt.publish.reset_mock()
+    bridge.on_rfx_message(None, make_msg(serial="0789186", value=0x80))
+    assert published_states(bridge) == ["OFF"]
+
+    bridge.mqtt.publish.reset_mock()
+    bridge.on_rfx_message(None, make_msg(serial="0789186", value=0xa0))
+    bridge.on_rfx_message(None, make_msg(serial="0789186", value=0x80))
+    assert published_states(bridge) == ["ON", "OFF"]
